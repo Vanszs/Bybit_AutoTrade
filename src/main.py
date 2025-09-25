@@ -124,7 +124,7 @@ class EnhancedBybitBot:
             "orderbook", "order book", "volume", "wallet", "saldo", "balance",
             "position", "posisi", "leverage", "order", "buy", "sell",
             "spot", "linear", "inverse", "option", "perpetual", "funding",
-            "symbol"
+            "symbol", "server time", "time", "waktu server", "timestamp"
         ]
         return not any(k in t for k in trading_keywords)
 
@@ -132,6 +132,14 @@ class EnhancedBybitBot:
         """
         Gunakan LLM untuk menganalisis intent user dan menentukan API call yang diperlukan
         """
+        # Simple pattern matching for server time requests
+        message_lower = message.lower()
+        if any(phrase in message_lower for phrase in ["server time", "time server", "bybit time", "waktu server"]):
+            return {
+                "action": "server_time",
+                "explanation": "Fetching Bybit server time"
+            }
+            
         system_prompt = f"""
         {API_DOCS_CONTEXT}
         
@@ -150,6 +158,11 @@ class EnhancedBybitBot:
         }}
         
         Available actions: server_time, tickers, kline, orderbook, recent_trades, instruments_info, wallet_balance, positions
+        
+        Examples:
+        - "What time is it on Bybit?" → server_time
+        - "What's the price of Bitcoin?" → tickers with BTCUSDT symbol
+        - "Show me the orderbook for ETH" → orderbook with ETHUSDT symbol
         
         If the message is not related to trading/market data, return:
         {{
