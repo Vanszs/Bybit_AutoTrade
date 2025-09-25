@@ -14,7 +14,10 @@ Environment Variables
 - `TELEGRAM_BOT_TOKEN`: Your Telegram bot token.
 - `ZAI_API_KEY`: Your LLM provider API key (default expects Novita).
 - `ZAI_BASE_URL` (optional): Defaults to `https://api.novita.ai/openai`.
+- `LLM_ROUTER_MODEL` (optional): Lighter model for intent routing (defaults to `LLM_MODEL`).
 - `BYBIT_API_KEY` and `BYBIT_API_SECRET` (optional): For Bybit integration (production API only).
+- `BYBIT_PUBLIC_ONLY`: Set to "true" to use only public endpoints (default: "true").
+- `BOT_AUTH_REQUIRED`: Set to "true" to require authentication (default: "false").
 
 Files
 
@@ -29,6 +32,9 @@ Notes
 - Secrets are read from `.env`. Avoid hardcoding credentials.
 - Bybit client implements signed V5 HTTP requests. Extend methods as needed.
 - MCP is optional; run it only if you have an MCP client to connect.
+- By default, the bot runs in public_only mode (only public API endpoints are available).
+- To enable trading and other private endpoints, set `BYBIT_PUBLIC_ONLY=false` and provide valid API keys.
+- For faster small-talk replies, consider a lighter `LLM_ROUTER_MODEL` and smaller `LLM_MAX_TOKENS` (e.g., 512–2048).
 
 Run MCP Server (optional)
 

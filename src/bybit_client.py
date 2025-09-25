@@ -19,6 +19,7 @@ class BybitConfig:
     demo: bool = False
     simulation_mode: bool = False
     simulation_balance: dict = None
+    public_only: bool = False  # Add public_only mode
 
 
 class BybitClient:
@@ -33,13 +34,15 @@ class BybitClient:
         self.cfg = cfg
         self.simulation_mode = cfg.simulation_mode
         self.simulation_balance = cfg.simulation_balance or {}
+        self.public_only = cfg.public_only
         
         if self.simulation_mode:
             self.enabled = True  # Simulation is always enabled
             self.base_url = "simulation://localhost"
             self._client = None
         else:
-            self.enabled = bool(cfg.api_key and cfg.api_secret)
+            # In public_only mode, we don't require API keys but still create a client
+            self.enabled = self.public_only or bool(cfg.api_key and cfg.api_secret)
             # Select correct environment
             if cfg.testnet:
                 self.base_url = "https://api-testnet.bybit.com"
@@ -56,7 +59,11 @@ class BybitClient:
         self._recv_window = "5000"
 
     def is_ready(self) -> bool:
-        return self.enabled or self.simulation_mode
+        return self.enabled or self.simulation_mode or self.public_only
+        
+    def can_access_private_endpoints(self) -> bool:
+        """Check if client has permissions for private endpoints"""
+        return (self.enabled and not self.public_only and bool(self.cfg.api_key and self.cfg.api_secret)) or self.simulation_mode
 
     # --------------- Simulation Methods ---------------
     def _simulate_market_data(self, symbol: str = "BTCUSDT") -> Dict[str, Any]:
@@ -160,72 +167,254 @@ class BybitClient:
 
     # --------------- Public Endpoints ---------------
     async def get_server_time(self) -> Dict[str, Any]:
-        r = await self._client.get("/v5/market/time")
-        r.raise_for_status()
-        return r.json()
+        # Handle simulation mode or client not initialized (public only with no client)
+        if self.simulation_mode or self._client is None:
+            current_time = int(time.time())
+            return {
+                "retCode": 0,
+                "retMsg": "OK" if self.simulation_mode else "OK (local time)",
+                "result": {
+                    "timeSecond": str(current_time),
+                    "timeNano": str(current_time * 1000000000)
+                }
+            }
+        
+        try:
+            r = await self._client.get("/v5/market/time")
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            # Fallback mechanism if API call fails
+            current_time = int(time.time())
+            return {
+                "retCode": 0,
+                "retMsg": f"OK (local fallback: {str(e)})",
+                "result": {
+                    "timeSecond": str(current_time),
+                    "timeNano": str(current_time * 1000000000)
+                }
+            }
 
     async def get_tickers(self, category: str, symbol: Optional[str] = None) -> Dict[str, Any]:
         if self.simulation_mode:
             return self._simulate_market_data(symbol or "BTCUSDT")
             
-        params = {"category": category}
-        if symbol:
-            params["symbol"] = symbol
-        r = await self._client.get("/v5/market/tickers", params=params)
-        r.raise_for_status()
-        return r.json()
+        # Validate category
+        valid_categories = ["spot", "linear", "inverse", "option"]
+        if category.lower() not in valid_categories:
+            return {
+                "retCode": 10001,
+                "retMsg": f"Invalid category: {category}. Must be one of {', '.join(valid_categories)}",
+                "result": {}
+            }
+            
+        # Handle case where client is not initialized (public_only with no key)
+        if self._client is None:
+            return {
+                "retCode": 10002,
+                "retMsg": "Client not initialized. API access unavailable.",
+                "result": {}
+            }
+            
+        try:
+            params = {"category": category}
+            if symbol:
+                params["symbol"] = symbol
+            r = await self._client.get("/v5/market/tickers", params=params)
+            r.raise_for_status()
+            return r.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 400:
+                # Try to extract error from Bybit response
+                try:
+                    error_data = e.response.json()
+                    return error_data
+                except:
+                    pass
+            return {
+                "retCode": e.response.status_code,
+                "retMsg": f"HTTP Error: {str(e)}",
+                "result": {}
+            }
+        except Exception as e:
+            return {
+                "retCode": 10000,
+                "retMsg": f"Error: {str(e)}",
+                "result": {}
+            }
 
     async def get_kline(self, category: str, symbol: str, interval: str, limit: int = 200, start: Optional[int] = None, end: Optional[int] = None) -> Dict[str, Any]:
         if self.simulation_mode:
             return self._simulate_kline_data(symbol, interval, limit)
             
-        params: Dict[str, Any] = {
-            "category": category,
-            "symbol": symbol,
-            "interval": interval,
-            "limit": limit,
-        }
-        if start is not None:
-            params["start"] = start
-        if end is not None:
-            params["end"] = end
-        r = await self._client.get("/v5/market/kline", params=params)
-        r.raise_for_status()
-        return r.json()
+        # Handle case where client is not initialized (public_only with no key)
+        if self._client is None:
+            return {
+                "retCode": 10002,
+                "retMsg": "Client not initialized. API access unavailable.",
+                "result": {}
+            }
+            
+        try:
+            params: Dict[str, Any] = {
+                "category": category,
+                "symbol": symbol,
+                "interval": interval,
+                "limit": limit,
+            }
+            if start is not None:
+                params["start"] = start
+            if end is not None:
+                params["end"] = end
+            r = await self._client.get("/v5/market/kline", params=params)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            return {
+                "retCode": 10000,
+                "retMsg": f"Error: {str(e)}",
+                "result": {}
+            }
 
     async def get_orderbook(self, category: str, symbol: str, limit: int = 50) -> Dict[str, Any]:
-        params = {"category": category, "symbol": symbol, "limit": limit}
-        r = await self._client.get("/v5/market/orderbook", params=params)
-        r.raise_for_status()
-        return r.json()
+        # Handle case where client is not initialized (public_only with no key)
+        if self._client is None:
+            return {
+                "retCode": 10002,
+                "retMsg": "Client not initialized. API access unavailable.",
+                "result": {}
+            }
+            
+        try:
+            params = {"category": category, "symbol": symbol, "limit": limit}
+            r = await self._client.get("/v5/market/orderbook", params=params)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            return {
+                "retCode": 10000,
+                "retMsg": f"Error: {str(e)}",
+                "result": {}
+            }
 
     async def get_recent_trades(self, category: str, symbol: str, limit: int = 50) -> Dict[str, Any]:
-        params = {"category": category, "symbol": symbol, "limit": limit}
-        r = await self._client.get("/v5/market/recent-trade", params=params)
-        r.raise_for_status()
-        return r.json()
+        # Handle case where client is not initialized (public_only with no key)
+        if self._client is None:
+            return {
+                "retCode": 10002,
+                "retMsg": "Client not initialized. API access unavailable.",
+                "result": {}
+            }
+            
+        try:
+            params = {"category": category, "symbol": symbol, "limit": limit}
+            r = await self._client.get("/v5/market/recent-trade", params=params)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            return {
+                "retCode": 10000,
+                "retMsg": f"Error: {str(e)}",
+                "result": {}
+            }
 
     async def get_instruments_info(self, category: str, symbol: Optional[str] = None) -> Dict[str, Any]:
-        params: Dict[str, Any] = {"category": category}
-        if symbol:
-            params["symbol"] = symbol
-        r = await self._client.get("/v5/market/instruments-info", params=params)
-        r.raise_for_status()
-        return r.json()
+        # Handle case where client is not initialized (public_only with no key)
+        if self._client is None:
+            return {
+                "retCode": 10002,
+                "retMsg": "Client not initialized. API access unavailable.",
+                "result": {}
+            }
+            
+        try:
+            params: Dict[str, Any] = {"category": category}
+            if symbol:
+                params["symbol"] = symbol
+            r = await self._client.get("/v5/market/instruments-info", params=params)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            return {
+                "retCode": 10000,
+                "retMsg": f"Error: {str(e)}",
+                "result": {}
+            }
 
     async def get_funding_history(self, category: str, symbol: str, limit: int = 50) -> Dict[str, Any]:
-        params = {"category": category, "symbol": symbol, "limit": limit}
-        r = await self._client.get("/v5/market/funding-history", params=params)
+        # Handle case where client is not initialized (public_only with no key)
+        if self._client is None:
+            return {
+                "retCode": 10002,
+                "retMsg": "Client not initialized. API access unavailable.",
+                "result": {}
+            }
+            
+        try:
+            params = {"category": category, "symbol": symbol, "limit": limit}
+            r = await self._client.get("/v5/market/funding-history", params=params)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            return {
+                "retCode": 10000,
+                "retMsg": f"Error: {str(e)}",
+                "result": {}
+            }
+
+    # --------------- Private Endpoints ---------------
+    async def set_leverage(self, *, category: str, symbol: str, buyLeverage: str, sellLeverage: str) -> Dict[str, Any]:
+        """Set leverage for a symbol. Bybit V5: POST /v5/position/set-leverage"""
+        if self.simulation_mode:
+            return {"retCode": 0, "retMsg": "OK", "result": {"symbol": symbol, "buyLeverage": buyLeverage, "sellLeverage": sellLeverage}}
+        if not self.can_access_private_endpoints():
+            raise RuntimeError("Private endpoint requires API key/secret or simulation mode.")
+        path = "/v5/position/set-leverage"
+        ts = self._timestamp_ms()
+        body: Dict[str, Any] = {
+            "category": category,
+            "symbol": symbol,
+            "buyLeverage": str(buyLeverage),
+            "sellLeverage": str(sellLeverage),
+        }
+        body_str = json.dumps(body, separators=(",", ":"))
+        sign = self._sign(ts, body_str)
+        headers = self._auth_headers(sign, ts)
+        r = await self._client.post(path, headers=headers, content=body_str)
         r.raise_for_status()
         return r.json()
 
-    # --------------- Private Endpoints ---------------
+    async def switch_isolated(self, *, category: str, symbol: str, tradeMode: int, buyLeverage: Optional[str] = None, sellLeverage: Optional[str] = None) -> Dict[str, Any]:
+        """Switch Cross/Isolated Margin. Bybit V5: POST /v5/position/switch-isolated
+        tradeMode: 0=cross, 1=isolated
+        """
+        if self.simulation_mode:
+            return {"retCode": 0, "retMsg": "OK", "result": {"symbol": symbol, "tradeMode": tradeMode}}
+        if not self.can_access_private_endpoints():
+            raise RuntimeError("Private endpoint requires API key/secret or simulation mode.")
+        path = "/v5/position/switch-isolated"
+        ts = self._timestamp_ms()
+        body: Dict[str, Any] = {
+            "category": category,
+            "symbol": symbol,
+            "tradeMode": tradeMode,
+        }
+        if buyLeverage is not None:
+            body["buyLeverage"] = str(buyLeverage)
+        if sellLeverage is not None:
+            body["sellLeverage"] = str(sellLeverage)
+        body_str = json.dumps(body, separators=(",", ":"))
+        sign = self._sign(ts, body_str)
+        headers = self._auth_headers(sign, ts)
+        r = await self._client.post(path, headers=headers, content=body_str)
+        r.raise_for_status()
+        return r.json()
     async def get_wallet_balance(self, account_type: str = "UNIFIED", coin: Optional[str] = None) -> Dict[str, Any]:
         if self.simulation_mode:
             return self._simulate_wallet_balance()
             
-        if not self.enabled:
-            raise RuntimeError("Bybit not configured. Set BYBIT_API_KEY/BYBIT_API_SECRET.")
+        if not self.can_access_private_endpoints():
+            raise RuntimeError("Private endpoint requires API key/secret or simulation mode.")
 
         path = "/v5/account/wallet-balance"
         ts = self._timestamp_ms()
@@ -258,9 +447,10 @@ class BybitClient:
         timeInForce: str = "GTC",
         reduceOnly: Optional[bool] = None,
         positionIdx: Optional[int] = None,
+        leverage: Optional[str] = None,
     ) -> Dict[str, Any]:
-        if not self.enabled:
-            raise RuntimeError("Bybit not configured. Set BYBIT_API_KEY/BYBIT_API_SECRET.")
+        if not self.can_access_private_endpoints():
+            raise RuntimeError("Private endpoint requires API key/secret or simulation mode.")
 
         path = "/v5/order/create"
         ts = self._timestamp_ms()
@@ -278,6 +468,8 @@ class BybitClient:
             body["reduceOnly"] = reduceOnly
         if positionIdx is not None:
             body["positionIdx"] = positionIdx
+        if leverage is not None:
+            body["leverage"] = leverage
 
         body_str = json.dumps(body, separators=(",", ":"))
         sign = self._sign(ts, body_str)
@@ -294,8 +486,8 @@ class BybitClient:
         orderId: Optional[str] = None,
         orderLinkId: Optional[str] = None,
     ) -> Dict[str, Any]:
-        if not self.enabled:
-            raise RuntimeError("Bybit not configured. Set BYBIT_API_KEY/BYBIT_API_SECRET.")
+        if not self.can_access_private_endpoints():
+            raise RuntimeError("Private endpoint requires API key/secret or simulation mode.")
         path = "/v5/order/cancel"
         ts = self._timestamp_ms()
         body: Dict[str, Any] = {"category": category, "symbol": symbol}
@@ -311,8 +503,8 @@ class BybitClient:
         return r.json()
 
     async def get_position_list(self, category: str, symbol: Optional[str] = None, settle_coin: Optional[str] = None) -> Dict[str, Any]:
-        if not self.enabled:
-            raise RuntimeError("Bybit not configured. Set BYBIT_API_KEY/BYBIT_API_SECRET.")
+        if not self.can_access_private_endpoints():
+            raise RuntimeError("Private endpoint requires API key/secret or simulation mode.")
         path = "/v5/position/list"
         ts = self._timestamp_ms()
         query: Dict[str, Any] = {"category": category}
@@ -329,8 +521,8 @@ class BybitClient:
         return r.json()
 
     async def get_order_realtime(self, category: str, symbol: Optional[str] = None) -> Dict[str, Any]:
-        if not self.enabled:
-            raise RuntimeError("Bybit not configured. Set BYBIT_API_KEY/BYBIT_API_SECRET.")
+        if not self.can_access_private_endpoints():
+            raise RuntimeError("Private endpoint requires API key/secret or simulation mode.")
         path = "/v5/order/realtime"
         ts = self._timestamp_ms()
         query: Dict[str, Any] = {"category": category}

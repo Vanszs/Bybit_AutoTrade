@@ -16,11 +16,13 @@ class Config:
     bybit_api_secret: str = ""
     bybit_testnet: bool = False
     bybit_environment: str = "demo"  # mainnet, testnet, demo, simulation
+    public_only: bool = True  # Toggle for public-only mode
     
     # ZAI (LLM) API
     zai_api_key: str = ""
     zai_base_url: str = "https://api.novita.ai/openai"
     llm_model: str = "openai/gpt-oss-120b"
+    llm_router_model: str = ""  # optional lighter model for intent routing
     llm_temperature: float = 0.7
     llm_max_tokens: int = 131072
     
@@ -28,6 +30,7 @@ class Config:
     bot_auth_username: str = "admin"
     bot_auth_password: str = "admin123"
     bot_auth_store: str = "data/auth.json"
+    bot_auth_required: bool = False  # Toggle for auth requirement
     
     # Enhanced configurations
     mcp_enabled: bool = True
@@ -45,6 +48,7 @@ def get_config() -> Config:
     zai_api_key = os.getenv("ZAI_API_KEY", "").strip()
     zai_base_url = os.getenv("ZAI_BASE_URL", "https://api.novita.ai/openai").strip()
     llm_model = os.getenv("LLM_MODEL", "openai/gpt-oss-120b").strip()
+    llm_router_model = os.getenv("LLM_ROUTER_MODEL", "").strip()
     try:
         llm_temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     except ValueError:
@@ -69,6 +73,12 @@ def get_config() -> Config:
     except ValueError:
         max_api_retries = 3
 
+    # Configuration for public-only mode
+    public_only = os.getenv("BYBIT_PUBLIC_ONLY", "true").lower() == "true"
+    
+    # Configuration for auth requirement
+    bot_auth_required = os.getenv("BOT_AUTH_REQUIRED", "false").lower() == "true"
+    
     # Auto-detect simulation mode based on API key validity
     bybit_environment = os.getenv("BYBIT_ENVIRONMENT", "demo").lower()
     simulation_mode = not bybit_api_key or bybit_api_key == 'egA0nUxhmZ6QMbPVV'
@@ -89,14 +99,17 @@ def get_config() -> Config:
         zai_api_key=zai_api_key,
         zai_base_url=zai_base_url,
         llm_model=llm_model,
+        llm_router_model=llm_router_model,
         llm_temperature=llm_temperature,
         llm_max_tokens=llm_max_tokens,
         bybit_api_key=bybit_api_key,
         bybit_api_secret=bybit_api_secret,
         bybit_testnet=bybit_testnet,
+        public_only=public_only,
         bot_auth_username=auth_username,
         bot_auth_password=auth_password,
         bot_auth_store=auth_store_path,
+        bot_auth_required=bot_auth_required,
         mcp_enabled=mcp_enabled,
         api_docs_path=api_docs_path,
         default_category=default_category,
