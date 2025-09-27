@@ -531,6 +531,10 @@ AVAILABLE TOOLS:
 3. get_multiple_prices(symbol, exchanges) - Get prices from specific exchanges list
 4. analyze_arbitrage(symbol, exchanges) - Find arbitrage opportunities
 5. get_market_overview(symbols, exchanges) - Multi-symbol overview
+6. get_positions() - Get user's current trading positions (requires API credentials)
+7. get_balance() - Get user's wallet balance (requires API credentials)
+8. close_position(position_id) - Close specific trading position by ID (requires API credentials)
+9. get_kline_data(symbol, interval, exchange) - Get historical kline/candlestick data
 
 UNDERSTANDING RULES:
 - If user asks for "top N" or "best N" exchanges: use compare_top_exchanges
@@ -538,12 +542,20 @@ UNDERSTANDING RULES:
 - If user asks about arbitrage/opportunities: use analyze_arbitrage
 - If user asks about multiple cryptocurrencies: use get_market_overview
 - If user asks about single exchange: use get_price
+- If user asks about positions/posisi/trading status: use get_positions
+- If user asks about balance/saldo/wallet: use get_balance
+- If user wants to close position: use close_position(position_id)
+- If user asks for kline/candlestick/chart data: use get_kline_data
 
 CRITICAL: Understand natural language context:
 - "show me BTC prices on top 5 CEX" = compare_top_exchanges(BTC, 5)
 - "compare ETH Binance vs KuCoin" = get_multiple_prices(ETH, [binance, kucoin])
 - "arbitrage for Bitcoin" = analyze_arbitrage(BTC, all_exchanges)
 - "harga Bitcoin terbaik" = compare_top_exchanges(BTC, 5)
+- "cek posisi saya" / "check my positions" = get_positions()
+- "cek saldo" / "check balance" / "wallet balance" = get_balance()
+- "tutup posisi 1" / "close position 2" = close_position(1) or close_position(2)
+- "get kline data BTC" / "chart data Bitcoin" = get_kline_data(BTC, 1h, bybit)
 
 {context_summary}
 
@@ -693,6 +705,124 @@ Respond ONLY with valid JSON:
                 if result.get("success"):
                     return await self._format_with_llm(result, user_understanding, original_query, "overview")
 
+            elif action == "get_positions":
+                # Check if user can access private endpoints
+                can_access, error_msg = self._check_private_endpoint_access()
+                if not can_access:
+                    return error_msg
+
+                try:
+                    result = await self.bybit_client.get_positions()
+                    if result.get("retCode") == 0:
+                        positions = result.get("result", {}).get("list", [])
+                        if positions:
+                            return await self._format_with_llm({"positions": positions}, user_understanding, original_query, "positions")
+                        else:
+                            return "📊 *Status Posisi*\n\n✅ Tidak ada posisi trading aktif saat ini."
+                    else:
+                        return f"❌ Error mengambil posisi: {result.get('retMsg', 'Unknown error')}"
+                except Exception as e:
+                    logger.error(f"Error getting positions: {e}")
+                    return f"❌ Error: {str(e)}"
+
+            elif action == "get_balance":
+                # Check if user can access private endpoints
+                can_access, error_msg = self._check_private_endpoint_access()
+                if not can_access:
+                    return error_msg
+
+                try:
+                    result = await self.bybit_client.get_wallet_balance()
+                    if result.get("retCode") == 0:
+                        balances = result.get("result", {}).get("list", [])
+                        if balances:
+                            return await self._format_with_llm({"balances": balances}, user_understanding, original_query, "balance")
+                        else:
+                            return "💰 *Saldo Wallet*\n\n❌ Tidak ada data saldo ditemukan."
+                    else:
+                        return f"❌ Error mengambil saldo: {result.get('retMsg', 'Unknown error')}"
+                except Exception as e:
+                    logger.error(f"Error getting balance: {e}")
+                    return f"❌ Error: {str(e)}"
+
+            elif action == "close_position":
+                # Check if user can access private endpoints
+                can_access, error_msg = self._check_private_endpoint_access()
+                if not can_access:
+                    return error_msg
+
+                position_id = parameters.get("position_id", 1)
+                
+                try:
+                    # First get positions to find the position by ID
+                    positions_result = await self.bybit_client.get_positions()
+                    if positions_result.get("retCode") == 0:
+                        positions = positions_result.get("result", {}).get("list", [])
+                        active_positions = [pos for pos in positions if float(pos.get("size", "0")) > 0]
+                        
+                        if not active_positions:
+                            return "❌ Tidak ada posisi aktif untuk ditutup."
+                        
+                        if position_id < 1 or position_id > len(active_positions):
+                            return f"❌ ID posisi {position_id} tidak valid. Posisi aktif: 1-{len(active_positions)}"
+                        
+                        # Get the position to close
+                        position_to_close = active_positions[position_id - 1]
+                        symbol = position_to_close.get("symbol")
+                        side = "Sell" if position_to_close.get("side") == "Buy" else "Buy"  # Opposite side to close
+                        qty = position_to_close.get("size")
+                        
+                        # Place market order to close position
+                        close_result = await self.bybit_client.place_order(
+                            category="linear",
+                            symbol=symbol,
+                            side=side,
+                            orderType="Market",
+                            qty=qty,
+                            reduceOnly=True
+                        )
+                        
+                        if close_result.get("retCode") == 0:
+                            return f"✅ *Posisi Ditutup*\n\nPosisi #{position_id} ({symbol}) berhasil ditutup dengan market order."
+                        else:
+                            return f"❌ Gagal tutup posisi: {close_result.get('retMsg', 'Unknown error')}"
+                    else:
+                        return f"❌ Error mengambil posisi: {positions_result.get('retMsg', 'Unknown error')}"
+                        
+                except Exception as e:
+                    logger.error(f"Error closing position: {e}")
+                    return f"❌ Error: {str(e)}"
+
+            elif action == "get_kline_data":
+                symbol = parameters.get("symbol", "BTCUSDT")
+                interval = parameters.get("interval", "1h")
+                exchange = parameters.get("exchange", "bybit")
+                limit = parameters.get("limit", 100)
+                
+                try:
+                    if exchange.lower() == "bybit":
+                        result = await self.bybit_client.get_kline(
+                            category="spot",
+                            symbol=symbol,
+                            interval=interval,
+                            limit=limit
+                        )
+                        
+                        if result.get("retCode") == 0:
+                            klines = result.get("result", {}).get("list", [])
+                            if klines:
+                                return await self._format_with_llm({"klines": klines, "symbol": symbol, "interval": interval}, user_understanding, original_query, "kline_data")
+                            else:
+                                return f"❌ Tidak ada data kline untuk {symbol} di interval {interval}"
+                        else:
+                            return f"❌ Error mengambil kline data: {result.get('retMsg', 'Unknown error')}"
+                    else:
+                        return f"❌ Exchange {exchange} belum didukung untuk kline data. Gunakan 'bybit'."
+                        
+                except Exception as e:
+                    logger.error(f"Error getting kline data: {e}")
+                    return f"❌ Error: {str(e)}"
+
             logger.warning(f"Unknown action '{action}' – falling back to conversational reply")
             return await self._handle_non_tool_response(user_understanding, original_query)
 
@@ -803,6 +933,98 @@ Create a well-formatted, natural response that directly answers the user's query
                     response += f"🚀 **#{i+1}**: Buy {opp.get('buy_exchange', 'N/A')} → Sell {opp.get('sell_exchange', 'N/A')}\n"
                     response += f"   Profit: {opp.get('profit_percent', 0):.2f}%\n\n"
                 return response
+
+        elif response_type == "positions":
+            positions = result.get("positions", [])
+            if positions:
+                response = "📊 *Status Posisi Trading*\n\n"
+                active_positions = []
+                
+                for i, pos in enumerate(positions[:10]):  # Limit to 10 positions
+                    # Only show positions with actual size
+                    size = float(pos.get("size", "0"))
+                    if size == 0:
+                        continue
+                        
+                    active_positions.append(pos)
+                    position_id = i + 1
+                    
+                    symbol = pos.get("symbol", "N/A")
+                    side = pos.get("side", "N/A")
+                    size_str = pos.get("size", "0")
+                    entry_price = pos.get("avgPrice", "0")
+                    unrealized_pnl = pos.get("unrealisedPnl", "0")
+                    mark_price = pos.get("markPrice", "0")
+                    
+                    side_emoji = "🟢" if side == "Buy" else "🔴"
+                    pnl_emoji = "💚" if float(unrealized_pnl) >= 0 else "❤️"
+                    
+                    response += f"🆔 *ID #{position_id}* - {side_emoji} *{symbol}* ({side})\n"
+                    response += f"   Size: `{size_str}`\n"
+                    response += f"   Entry: `${entry_price}`\n"
+                    response += f"   Mark: `${mark_price}`\n"
+                    response += f"   PnL: {pnl_emoji} `${unrealized_pnl}`\n\n"
+                
+                if active_positions:
+                    response += "💡 *Tip*: Untuk tutup posisi ketik 'tutup posisi [ID]'\n"
+                    response += "   Contoh: 'tutup posisi 1' atau 'close position 2'\n"
+                    return response
+                else:
+                    return "📊 *Status Posisi*\n\n✅ Tidak ada posisi trading aktif."
+            else:
+                return "📊 *Status Posisi*\n\n✅ Tidak ada posisi trading aktif."
+
+        elif response_type == "balance":
+            balances = result.get("balances", [])
+            if balances:
+                response = "💰 *Saldo Wallet*\n\n"
+                for wallet in balances:
+                    account_type = wallet.get("accountType", "UNIFIED")
+                    coins = wallet.get("coin", [])
+                    
+                    response += f"🏦 *{account_type} Account*\n"
+                    
+                    for coin in coins[:10]:  # Limit to 10 coins
+                        coin_name = coin.get("coin", "N/A")
+                        wallet_balance = coin.get("walletBalance", "0")
+                        available = coin.get("availableToWithdraw", "0")
+                        
+                        if float(wallet_balance) > 0:
+                            response += f"   💎 *{coin_name}*: `{wallet_balance}`\n"
+                            response += f"      Available: `{available}`\n"
+                    
+                    response += "\n"
+                return response
+            else:
+                return "💰 *Saldo Wallet*\n\n❌ Tidak ada data saldo ditemukan."
+
+        elif response_type == "kline_data":
+            klines = result.get("klines", [])
+            symbol = result.get("symbol", "BTCUSDT")
+            interval = result.get("interval", "1h")
+            
+            if klines:
+                response = f"📈 *Kline Data {symbol}* (Interval: {interval})\n\n"
+                response += "`Time          | Open     | High     | Low      | Close    | Volume`\n"
+                response += "`------------- | -------- | -------- | -------- | -------- | --------`\n"
+                
+                # Show last 10 klines
+                for kline in klines[:10]:
+                    timestamp = int(kline[0]) // 1000
+                    from datetime import datetime
+                    time_str = datetime.fromtimestamp(timestamp).strftime("%m-%d %H:%M")
+                    open_price = float(kline[1])
+                    high_price = float(kline[2])
+                    low_price = float(kline[3])
+                    close_price = float(kline[4])
+                    volume = float(kline[5])
+                    
+                    response += f"`{time_str}    | {open_price:8.2f} | {high_price:8.2f} | {low_price:8.2f} | {close_price:8.2f} | {volume:8.0f}`\n"
+                
+                response += f"\n📊 Total records: {len(klines)}"
+                return response
+            else:
+                return f"📈 *Kline Data {symbol}*\n\n❌ Tidak ada data tersedia."
 
         return f"📊 **Data Retrieved**: {json.dumps(result, indent=2)}"
 
