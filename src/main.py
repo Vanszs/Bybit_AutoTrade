@@ -814,12 +814,39 @@ Respond ONLY with valid JSON:
                 exchange = parameters.get("exchange", "bybit")
                 limit = parameters.get("limit", 100)
                 
+                # Convert interval to Bybit format
+                interval_mapping = {
+                    "1m": "1",
+                    "1min": "1", 
+                    "3m": "3",
+                    "5m": "5",
+                    "5min": "5",
+                    "15m": "15",
+                    "15min": "15",
+                    "30m": "30",
+                    "30min": "30", 
+                    "1h": "60",
+                    "1hour": "60",
+                    "2h": "120",
+                    "4h": "240",
+                    "6h": "360",
+                    "12h": "720",
+                    "1d": "D",
+                    "1day": "D",
+                    "1w": "W",
+                    "1week": "W",
+                    "1M": "M",
+                    "1month": "M"
+                }
+                
+                bybit_interval = interval_mapping.get(interval.lower(), interval)
+                
                 try:
                     if exchange.lower() == "bybit":
                         result = await self.bybit_client.get_kline(
                             category="spot",
                             symbol=symbol,
-                            interval=interval,
+                            interval=bybit_interval,
                             limit=limit
                         )
                         
