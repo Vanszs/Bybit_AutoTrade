@@ -60,7 +60,7 @@ def get_config() -> Config:
     # Multi-exchange configuration
     multi_exchange_enabled = os.getenv("MULTI_EXCHANGE_ENABLED", "true").lower() == "true"
     default_exchange = os.getenv("DEFAULT_EXCHANGE", "bybit").lower()
-    available_exchanges_str = os.getenv("AVAILABLE_EXCHANGES", "bybit,binance,kucoin,indodax,mexc,okx,bitfinex,gateio,kraken,huobi")
+    available_exchanges_str = os.getenv("AVAILABLE_EXCHANGES", "bybit,binance,kucoin,indodax,mexc,okx,bitfinex,gateio,kraken,huobi,tokocrypto,bitget,coinbase,cryptocom,poloniex")
     available_exchanges = [x.strip() for x in available_exchanges_str.split(",")]
     llm_router_model = os.getenv("LLM_ROUTER_MODEL", "").strip()
     try:

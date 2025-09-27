@@ -535,6 +535,11 @@ AVAILABLE TOOLS:
 7. get_balance() - Get user's wallet balance (requires API credentials)
 8. close_position(position_id) - Close specific trading position by ID (requires API credentials)
 9. get_kline_data(symbol, interval, exchange) - Get historical kline/candlestick data
+10. get_orderbook(symbol, exchange, limit) - Get order book data from exchange
+11. get_recent_trades(symbol, exchange, limit) - Get recent trade history
+12. get_funding_history(symbol, category, limit) - Get funding rate history (Bybit only)
+13. get_instruments_info(exchange, symbol) - Get trading instruments information
+14. get_server_time(exchange) - Get server time from exchange
 
 UNDERSTANDING RULES:
 - If user asks for "top N" or "best N" exchanges: use compare_top_exchanges
@@ -546,6 +551,11 @@ UNDERSTANDING RULES:
 - If user asks about balance/saldo/wallet: use get_balance
 - If user wants to close position: use close_position(position_id)
 - If user asks for kline/candlestick/chart data: use get_kline_data
+- If user asks for order book data: use get_orderbook
+- If user asks for recent trades/transaction history: use get_recent_trades
+- If user asks for funding rate/funding history: use get_funding_history
+- If user asks for instruments/symbols info: use get_instruments_info
+- If user asks for server time: use get_server_time
 
 CRITICAL: Understand natural language context:
 - "show me BTC prices on top 5 CEX" = compare_top_exchanges(BTC, 5)
@@ -556,6 +566,11 @@ CRITICAL: Understand natural language context:
 - "cek saldo" / "check balance" / "wallet balance" = get_balance()
 - "tutup posisi 1" / "close position 2" = close_position(1) or close_position(2)
 - "get kline data BTC" / "chart data Bitcoin" = get_kline_data(BTC, 1h, bybit)
+- "show orderbook BTC" / "order book Bitcoin" = get_orderbook(BTC, bybit, 20)
+- "recent trades ETH" / "latest transactions" = get_recent_trades(ETH, bybit, 50)
+- "funding rate BTC" / "funding history" = get_funding_history(BTC, linear, 50)
+- "list instruments" / "available symbols" = get_instruments_info(bybit)
+- "server time" / "current time" = get_server_time(bybit)
 
 {context_summary}
 
@@ -823,6 +838,18 @@ Respond ONLY with valid JSON:
                     logger.error(f"Error getting kline data: {e}")
                     return f"❌ Error: {str(e)}"
 
+            elif action in ["get_orderbook", "get_recent_trades", "get_funding_history", "get_instruments_info", "get_server_time"]:
+                # Handle additional tools via tools registry
+                try:
+                    result = await self.tools_registry.execute_tool(action, parameters)
+                    if result.get("success"):
+                        return await self._format_with_llm(result, user_understanding, original_query, action)
+                    else:
+                        return f"❌ Error: {result.get('error', 'Unknown error')}"
+                except Exception as e:
+                    logger.error(f"Error executing {action}: {e}")
+                    return f"❌ Error: {str(e)}"
+
             logger.warning(f"Unknown action '{action}' – falling back to conversational reply")
             return await self._handle_non_tool_response(user_understanding, original_query)
 
@@ -1025,6 +1052,95 @@ Create a well-formatted, natural response that directly answers the user's query
                 return response
             else:
                 return f"📈 *Kline Data {symbol}*\n\n❌ Tidak ada data tersedia."
+
+        elif response_type == "get_orderbook":
+            orderbook = result.get("orderbook", {})
+            symbol = result.get("symbol", "BTCUSDT")
+            exchange = result.get("exchange", "bybit")
+            
+            if orderbook:
+                response = f"📚 *Order Book {symbol}* ({exchange.upper()})\n\n"
+                
+                # Show bids and asks
+                bids = orderbook.get("b", [])[:5]  # Top 5 bids
+                asks = orderbook.get("a", [])[:5]  # Top 5 asks
+                
+                if asks:
+                    response += "*🔴 Asks (Sell Orders):*\n"
+                    for ask in asks:
+                        price, quantity = ask[0], ask[1]
+                        response += f"   `${price}` - Qty: `{quantity}`\n"
+                    response += "\n"
+                
+                if bids:
+                    response += "*🟢 Bids (Buy Orders):*\n"
+                    for bid in bids:
+                        price, quantity = bid[0], bid[1]
+                        response += f"   `${price}` - Qty: `{quantity}`\n"
+                
+                return response
+            else:
+                return f"📚 *Order Book {symbol}*\n\n❌ Tidak ada data tersedia."
+
+        elif response_type == "get_recent_trades":
+            trades = result.get("trades", {}).get("list", [])
+            symbol = result.get("symbol", "BTCUSDT")
+            exchange = result.get("exchange", "bybit")
+            
+            if trades:
+                response = f"📊 *Recent Trades {symbol}* ({exchange.upper()})\n\n"
+                response += "`Time     | Price     | Quantity  | Side`\n"
+                response += "`-------- | --------- | --------- | ----`\n"
+                
+                for trade in trades[:10]:
+                    timestamp = int(trade.get("T", 0)) // 1000
+                    from datetime import datetime
+                    time_str = datetime.fromtimestamp(timestamp).strftime("%H:%M:%S")
+                    price = float(trade.get("p", 0))
+                    qty = float(trade.get("v", 0))
+                    side = "Buy" if trade.get("S") == "Buy" else "Sell"
+                    side_emoji = "🟢" if side == "Buy" else "🔴"
+                    
+                    response += f"`{time_str} | ${price:8.2f} | {qty:8.4f} | {side_emoji} {side}`\n"
+                
+                return response
+            else:
+                return f"📊 *Recent Trades {symbol}*\n\n❌ Tidak ada data tersedia."
+
+        elif response_type == "get_funding_history":
+            funding_data = result.get("funding_history", {}).get("list", [])
+            symbol = result.get("symbol", "BTCUSDT")
+            
+            if funding_data:
+                response = f"💰 *Funding Rate History {symbol}*\n\n"
+                response += "`Date         | Funding Rate | Symbol`\n"
+                response += "`------------ | ------------ | ------`\n"
+                
+                for item in funding_data[:10]:
+                    timestamp = int(item.get("fundingRateTimestamp", 0)) // 1000
+                    from datetime import datetime
+                    date_str = datetime.fromtimestamp(timestamp).strftime("%m-%d %H:%M")
+                    funding_rate = float(item.get("fundingRate", 0))
+                    funding_percent = funding_rate * 100
+                    
+                    response += f"`{date_str}  | {funding_percent:10.6f}% | {item.get('symbol', 'N/A')}`\n"
+                
+                return response
+            else:
+                return f"💰 *Funding Rate History {symbol}*\n\n❌ Tidak ada data tersedia."
+
+        elif response_type in ["get_instruments_info", "get_server_time"]:
+            # Generic fallback for other tools
+            response = f"📋 *{response_type.replace('_', ' ').title()}*\n\n"
+            
+            if result.get("success"):
+                # Extract key information
+                for key, value in result.items():
+                    if key not in ["success", "timestamp"]:
+                        response += f"*{key.replace('_', ' ').title()}*: `{value}`\n"
+                return response
+            else:
+                return f"❌ Error: {result.get('error', 'Unknown error')}"
 
         return f"📊 **Data Retrieved**: {json.dumps(result, indent=2)}"
 

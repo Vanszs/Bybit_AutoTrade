@@ -39,7 +39,12 @@ class ExchangeClient:
             'bitfinex': 'https://api-pub.bitfinex.com',
             'gateio': 'https://api.gateio.ws/api/v4',
             'kraken': 'https://api.kraken.com/0/public',
-            'huobi': 'https://api.huobi.pro'
+            'huobi': 'https://api.huobi.pro',
+            'tokocrypto': 'https://www.tokocrypto.com/open/v1',
+            'bitget': 'https://api.bitget.com',
+            'coinbase': 'https://api.coinbase.com/api/v3/brokerage',
+            'cryptocom': 'https://api.crypto.com/v1',
+            'poloniex': 'https://api.poloniex.com'
         }
         
     def _format_idr_price(self, price_str: str) -> str:

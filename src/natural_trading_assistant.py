@@ -95,6 +95,53 @@ class TradingToolsRegistry:
             },
             "function": self._analyze_arbitrage
         }
+        
+        # Tool untuk orderbook data
+        self.tools["get_orderbook"] = {
+            "name": "get_orderbook",
+            "description": "Get order book data from specific exchange",
+            "parameters": {
+                "symbol": {"type": "string", "description": "Cryptocurrency symbol"},
+                "exchange": {"type": "string", "description": "Exchange name"},
+                "limit": {"type": "integer", "description": "Number of orders to retrieve (default: 20)"}
+            },
+            "function": self._get_orderbook
+        }
+        
+        # Tool untuk recent trades
+        self.tools["get_recent_trades"] = {
+            "name": "get_recent_trades",
+            "description": "Get recent trade history from specific exchange",
+            "parameters": {
+                "symbol": {"type": "string", "description": "Cryptocurrency symbol"},
+                "exchange": {"type": "string", "description": "Exchange name"},
+                "limit": {"type": "integer", "description": "Number of trades to retrieve (default: 50)"}
+            },
+            "function": self._get_recent_trades
+        }
+        
+        # Tool untuk funding rate history (Bybit only)
+        self.tools["get_funding_history"] = {
+            "name": "get_funding_history",
+            "description": "Get funding rate history for perpetual contracts (Bybit only)",
+            "parameters": {
+                "symbol": {"type": "string", "description": "Cryptocurrency symbol"},
+                "category": {"type": "string", "description": "Category (linear/inverse)", "default": "linear"},
+                "limit": {"type": "integer", "description": "Number of records (default: 50)"}
+            },
+            "function": self._get_funding_history
+        }
+        
+        # Tool untuk instruments info
+        self.tools["get_instruments_info"] = {
+            "name": "get_instruments_info", 
+            "description": "Get trading instruments information",
+            "parameters": {
+                "exchange": {"type": "string", "description": "Exchange name"},
+                "symbol": {"type": "string", "description": "Cryptocurrency symbol (optional)"}
+            },
+            "function": self._get_instruments_info
+        }
     
     async def _get_price(self, symbol: str, exchange: str) -> Dict[str, Any]:
         """Get price dari single exchange"""
@@ -246,6 +293,97 @@ class TradingToolsRegistry:
                 "market_spread": comparison["price_spread"],
                 "timestamp": datetime.now().isoformat()
             }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _get_orderbook(self, symbol: str, exchange: str, limit: int = 20) -> Dict[str, Any]:
+        """Get orderbook data from specific exchange"""
+        try:
+            if exchange.lower() == 'bybit':
+                # Use Bybit client for orderbook
+                normalized_symbol = self.exchange_client.normalize_symbol(symbol, exchange)
+                result = await self.bybit_client.get_orderbook("spot", normalized_symbol, limit)
+                if result.get("retCode") == 0:
+                    orderbook_data = result.get("result", {})
+                    return {
+                        "success": True,
+                        "exchange": exchange,
+                        "symbol": symbol,
+                        "orderbook": orderbook_data,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                else:
+                    return {"success": False, "error": result.get("retMsg", "Unknown error")}
+            else:
+                return {"success": False, "error": f"Orderbook not supported for {exchange}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _get_recent_trades(self, symbol: str, exchange: str, limit: int = 50) -> Dict[str, Any]:
+        """Get recent trades from specific exchange"""
+        try:
+            if exchange.lower() == 'bybit':
+                # Use Bybit client for recent trades
+                normalized_symbol = self.exchange_client.normalize_symbol(symbol, exchange)
+                result = await self.bybit_client.get_recent_trades("spot", normalized_symbol, limit)
+                if result.get("retCode") == 0:
+                    trades_data = result.get("result", {})
+                    return {
+                        "success": True,
+                        "exchange": exchange,
+                        "symbol": symbol,
+                        "trades": trades_data,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                else:
+                    return {"success": False, "error": result.get("retMsg", "Unknown error")}
+            else:
+                return {"success": False, "error": f"Recent trades not supported for {exchange}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _get_funding_history(self, symbol: str, category: str = "linear", limit: int = 50) -> Dict[str, Any]:
+        """Get funding rate history (Bybit only)"""
+        try:
+            normalized_symbol = self.exchange_client.normalize_symbol(symbol, "bybit")
+            result = await self.bybit_client.get_funding_history(category, normalized_symbol, limit)
+            if result.get("retCode") == 0:
+                funding_data = result.get("result", {})
+                return {
+                    "success": True,
+                    "exchange": "bybit",
+                    "symbol": symbol,
+                    "category": category,
+                    "funding_history": funding_data,
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                return {"success": False, "error": result.get("retMsg", "Unknown error")}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _get_instruments_info(self, exchange: str, symbol: Optional[str] = None) -> Dict[str, Any]:
+        """Get instruments info from exchange"""
+        try:
+            if exchange.lower() == 'bybit':
+                normalized_symbol = None
+                if symbol:
+                    normalized_symbol = self.exchange_client.normalize_symbol(symbol, exchange)
+                
+                result = await self.bybit_client.get_instruments_info("spot", normalized_symbol)
+                if result.get("retCode") == 0:
+                    instruments_data = result.get("result", {})
+                    return {
+                        "success": True,
+                        "exchange": exchange,
+                        "symbol": symbol,
+                        "instruments": instruments_data,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                else:
+                    return {"success": False, "error": result.get("retMsg", "Unknown error")}
+            else:
+                return {"success": False, "error": f"Instruments info not supported for {exchange}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
