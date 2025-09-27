@@ -46,6 +46,9 @@ class Config:
     # Simulation Mode Settings
     simulation_mode: bool = False
     simulation_balance: dict = None
+    
+    # Public/Private mode setting
+    bybit_public_only: bool = True
 
 
 def get_config() -> Config:
@@ -116,7 +119,7 @@ def get_config() -> Config:
         bybit_api_key=bybit_api_key,
         bybit_api_secret=bybit_api_secret,
         bybit_testnet=bybit_testnet,
-        public_only=public_only,
+        bybit_public_only=public_only,
         multi_exchange_enabled=multi_exchange_enabled,
         default_exchange=default_exchange,
         available_exchanges=available_exchanges,

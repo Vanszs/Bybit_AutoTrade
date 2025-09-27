@@ -79,6 +79,30 @@ class UnifiedTradingBot:
         self._register_mcp_handlers()
         logger.info("🚀 Unified Trading Bot initialized - Telegram + MCP ready!")
 
+    def _check_private_endpoint_access(self, user_id: str = None) -> tuple[bool, str]:
+        """Check if user can access private endpoints"""
+        if self.config.bybit_public_only:
+            return False, (
+                "🔒 *Mode Publik Aktif*\n\n"
+                "Maaf, fitur ini memerlukan akses ke endpoint private.\n\n"
+                "_Untuk mengaktifkan:_\n"
+                "• Set API credentials di `.env`\n"
+                "• Ubah `BYBIT_PUBLIC_ONLY=false`\n"
+                "• Restart bot\n\n"
+                "💡 *Tip: Gunakan testnet untuk testing aman*"
+            )
+        
+        if not self.bybit_client.can_access_private_endpoints():
+            return False, (
+                "🔑 *Credentials Tidak Tersedia*\n\n"
+                "Silakan set API credentials:\n"
+                "• `BYBIT_API_KEY`\n"
+                "• `BYBIT_API_SECRET`\n\n"
+                "Lalu restart bot."
+            )
+        
+        return True, ""
+
     def _setup_telegram_handlers(self):
         """Setup Telegram bot handlers"""
         self.telegram_app.add_handler(CommandHandler("start", self.telegram_start))
@@ -88,6 +112,7 @@ class UnifiedTradingBot:
         self.telegram_app.add_handler(CommandHandler("compare", self.telegram_compare))
         self.telegram_app.add_handler(CommandHandler("balance", self.telegram_balance))
         self.telegram_app.add_handler(CommandHandler("exchanges", self.telegram_exchanges))
+        self.telegram_app.add_handler(CommandHandler("convert", self.telegram_convert))
         self.telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.telegram_message))
 
     async def telegram_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -130,6 +155,7 @@ class UnifiedTradingBot:
 • `/compare [SYMBOL]` - Compare prices across exchanges
 • `/balance` - Get wallet balance (requires API key)
 • `/exchanges` - List available exchanges
+• `/convert [AMOUNT] [FROM] to [TO]` - Currency converter
 
 🔧 **MCP Server:**
 • Jalan bersamaan dengan Telegram
@@ -217,6 +243,12 @@ class UnifiedTradingBot:
         try:
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
             
+            # Check private endpoint access
+            can_access, error_msg = self._check_private_endpoint_access(str(update.effective_user.id))
+            if not can_access:
+                await update.message.reply_text(error_msg, parse_mode='Markdown')
+                return
+            
             # Use MCP integration for balance
             response = await self.mcp_integration.handle_balance_query()
             await update.message.reply_text(response, parse_mode='Markdown')
@@ -261,6 +293,74 @@ class UnifiedTradingBot:
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {str(e)}")
 
+    async def telegram_convert(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Telegram /convert command - currency converter"""
+        try:
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+            
+            # Parse arguments
+            args = context.args
+            if len(args) < 2:
+                help_msg = """
+💱 **Currency Converter**
+
+**Usage:**
+• `/convert 100 USD to IDR` - Convert USD to IDR
+• `/convert 1500000 IDR to USD` - Convert IDR to USD  
+• `/convert 0.5 BTC to USD` - Convert BTC to USD (if price available)
+
+**Supported currencies:**
+• USD, IDR
+• Major cryptocurrencies (BTC, ETH, etc.)
+                """.strip()
+                await update.message.reply_text(help_msg, parse_mode='Markdown')
+                return
+            
+            # Simple conversion logic
+            amount = float(args[0])
+            from_currency = args[1].upper()
+            to_currency = args[3].upper() if len(args) > 3 and args[2].lower() == "to" else "USD"
+            
+            conversion_rate = 15000  # 1 USD = 15,000 IDR (approximate)
+            
+            if from_currency == "USD" and to_currency == "IDR":
+                result = amount * conversion_rate
+                result_msg = f"""
+💱 **Currency Conversion**
+
+💰 **{amount:,.2f} USD** → **Rp {result:,.0f} IDR**
+
+📊 Rate: 1 USD = Rp {conversion_rate:,}
+⏰ Updated: Real-time approximate rate
+                """.strip()
+            
+            elif from_currency == "IDR" and to_currency == "USD":
+                result = amount / conversion_rate
+                result_msg = f"""
+💱 **Currency Conversion**
+
+💰 **Rp {amount:,.0f} IDR** → **${result:,.2f} USD**
+
+📊 Rate: 1 USD = Rp {conversion_rate:,}
+⏰ Updated: Real-time approximate rate
+                """.strip()
+            
+            else:
+                result_msg = f"""
+❌ **Conversion not supported**
+
+Supported pairs:
+• USD ↔ IDR
+• Use `/price SYMBOL exchange` for crypto prices
+                """.strip()
+            
+            await update.message.reply_text(result_msg, parse_mode='Markdown')
+            
+        except ValueError:
+            await update.message.reply_text("❌ Invalid amount. Please enter a valid number.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error: {str(e)}")
+
     async def telegram_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle Telegram messages dengan LLM"""
         user_id = update.effective_user.id
@@ -283,19 +383,54 @@ class UnifiedTradingBot:
                         " atau analisis strategi. Cukup tanya aja, ya!"
                     )
 
-                # Split long messages
+                # Clean markdown and split long messages
+                response_text = self._clean_markdown_for_telegram(response_text)
+                
                 if len(response_text) > 4000:
                     chunks = [response_text[i:i+4000] for i in range(0, len(response_text), 4000)]
                     for chunk in chunks:
-                        await update.message.reply_text(chunk, parse_mode='Markdown')
+                        try:
+                            await update.message.reply_text(chunk, parse_mode='Markdown')
+                        except Exception as parse_error:
+                            # Fallback to plain text if markdown fails
+                            await update.message.reply_text(chunk)
                 else:
-                    await update.message.reply_text(response_text, parse_mode='Markdown')
+                    try:
+                        await update.message.reply_text(response_text, parse_mode='Markdown')
+                    except Exception as parse_error:
+                        # Fallback to plain text if markdown fails
+                        await update.message.reply_text(response_text)
             else:
                 await update.message.reply_text("❌ Tidak ada response dari sistem")
 
         except Exception as e:
             logger.error(f"Telegram error: {e}", exc_info=True)
-            await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
+            try:
+                await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='Markdown')
+            except:
+                await update.message.reply_text(f"❌ Error: {str(e)}")
+
+    def _clean_markdown_for_telegram(self, text: str) -> str:
+        """Clean markdown text to avoid Telegram parsing errors"""
+        import re
+        
+        # Fix common markdown issues only - don't over-escape
+        
+        # Fix bold/italic that might be broken
+        text = re.sub(r'\*\*([^*]*?)\*\*', r'*\1*', text)  # Convert ** to *
+        text = re.sub(r'__([^_]*?)__', r'_\1_', text)      # Convert __ to _
+        
+        # Remove markdown code blocks - convert to inline code
+        text = re.sub(r'```(\w*)\n?([^`]*?)```', r'`\2`', text)
+        
+        # Fix broken or complex markdown links - just show text
+        text = re.sub(r'\[([^\]]*?)\]\([^)]*?\)', r'\1', text)
+        
+        # Only escape problematic characters that break Telegram parsing
+        # Keep basic formatting characters unescaped
+        text = re.sub(r'([\\])', r'\\\\', text)  # Escape backslashes
+        
+        return text
 
     def _register_mcp_handlers(self):
         """Register MCP server handlers"""
@@ -603,14 +738,20 @@ Respond ONLY with valid JSON:
         """Format response using LLM untuk natural presentation"""
 
         # System prompt untuk formatting
-        format_prompt = f"""You are a professional cryptocurrency market analyst. Format the trading data into a natural, informative response.
+        format_prompt = f"""You are a professional cryptocurrency market analyst. Format the trading data into a natural, informative response for Telegram messaging.
 
 USER QUERY: "{original_query}"
 USER INTENT: {user_understanding}
 RESPONSE TYPE: {response_type}
 
-FORMATTING GUIDELINES:
+TELEGRAM FORMATTING GUIDELINES:
 - Use emojis appropriately (🏆 for rankings, 💰 for prices, 📊 for data, 🥇🥈🥉 for top 3)
+- Use simple *bold* text (single asterisk only) for emphasis
+- Use _italic_ text (single underscore only) for secondary info
+- Use `code` format (backticks) for prices and numbers
+- NO escaping of characters like dots, exclamation marks, hyphens
+- NO double asterisks (**) or double underscores (__)
+- Use plain text for special characters like dots, exclamation marks, hyphens
 - Show clear rankings for top exchanges
 - Include price spread analysis if relevant
 - Add insights about arbitrage opportunities
@@ -620,7 +761,7 @@ FORMATTING GUIDELINES:
 DATA TO FORMAT:
 {json.dumps(tool_result, indent=2)}
 
-Create a well-formatted, natural response that directly answers the user's query."""
+Create a well-formatted, natural response that directly answers the user's query. Keep formatting simple and Telegram-compatible."""
 
         try:
             formatted_response = await asyncio.to_thread(

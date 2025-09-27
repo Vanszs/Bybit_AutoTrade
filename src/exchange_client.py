@@ -42,9 +42,19 @@ class ExchangeClient:
             'huobi': 'https://api.huobi.pro'
         }
         
+    def _format_idr_price(self, price_str: str) -> str:
+        """Format IDR price with thousands separator"""
+        try:
+            price = float(price_str)
+            # Format with thousands separator
+            return f"Rp {price:,.0f}".replace(",", ".")
+        except (ValueError, TypeError):
+            return price_str
+
     async def close(self):
-        """Close the HTTP client session"""
-        await self.client.aclose()
+        """Close the HTTP client"""
+        if self.client:
+            await self.client.aclose()
         
     def get_supported_exchanges(self) -> List[str]:
         """Get a list of supported exchanges"""
@@ -238,8 +248,18 @@ class ExchangeClient:
                 
             elif exchange == 'gateio':
                 # Gate.io API for ticker
-                # For Gate.io, use BTC_USDT format
-                gateio_symbol = formatted_symbol.replace('-', '_')
+                # For Gate.io, use BTC_USDT format (underscore separated)
+                if '-' in formatted_symbol:
+                    gateio_symbol = formatted_symbol  # Already in BTC-USDT format
+                    gateio_symbol = gateio_symbol.replace('-', '_')  # Convert to BTC_USDT
+                else:
+                    # Convert BTCUSDT to BTC_USDT
+                    if 'USDT' in formatted_symbol:
+                        base = formatted_symbol.replace('USDT', '')
+                        gateio_symbol = f"{base}_USDT"
+                    else:
+                        gateio_symbol = formatted_symbol
+                
                 endpoint = f"{self.exchange_base_urls[exchange]}/spot/tickers"
                 params = {"currency_pair": gateio_symbol}
                 response = await self.client.get(endpoint, params=params)
@@ -445,18 +465,22 @@ class ExchangeClient:
                 ticker = data.get("ticker", {})
                 idr_price = ticker.get("last", "0")
                 
-                # Convert IDR to USD (approximate rate: 1 USD = 15000 IDR)
+                # Format IDR with proper thousands separator
                 try:
+                    idr_formatted = self._format_idr_price(idr_price)
+                    # Convert IDR to USD (approximate rate: 1 USD = 15000 IDR)
                     usd_price = float(idr_price) / 15000 if idr_price != "N/A" else "N/A"
                     formatted_price = f"{usd_price:.2f}" if usd_price != "N/A" else "N/A"
                 except (ValueError, TypeError):
                     formatted_price = "N/A"
+                    idr_formatted = idr_price
                 
                 return {
                     "exchange": exchange.capitalize(),
                     "symbol": symbol,
                     "price": formatted_price,
                     "price_idr": idr_price,  # Keep original IDR price
+                    "price_idr_formatted": idr_formatted,  # Formatted IDR
                     "change_24h": "N/A",  # Indodax doesn't provide percent change
                     "volume_24h": ticker.get("vol_idr", "N/A"),
                     "high_24h": ticker.get("high", "N/A"),

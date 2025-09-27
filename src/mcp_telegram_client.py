@@ -195,11 +195,15 @@ class TelegramMCPIntegration:
                     
                     change_emoji = "🟢" if change_24h >= 0 else "🔴"
                     
+                    conversion_prompt = self._get_conversion_prompt(price)
+                    
                     return f"""
 📊 **{symbol}** - Bybit
 💰 Price: ${price:,.6f}
 {change_emoji} 24h Change: {change_24h:+.2f}%
 📈 24h Volume: {volume_24h:,.2f}
+
+{conversion_prompt}
                     """.strip()
             
             elif exchange in ["binance", "mexc"]:
@@ -215,11 +219,15 @@ class TelegramMCPIntegration:
                 
                 change_emoji = "🟢" if change_24h >= 0 else "🔴"
                 
+                conversion_prompt = self._get_conversion_prompt(price)
+                
                 return f"""
 📊 **{symbol}** - {exchange.title()}
 💰 Price: ${price:,.6f}
 {change_emoji} 24h Change: {change_24h:+.2f}%
 📈 24h Volume: {volume_24h:,.2f}
+
+{conversion_prompt}
                 """.strip()
             
             elif exchange == "kucoin":
@@ -234,19 +242,66 @@ class TelegramMCPIntegration:
                 volume_24h = float(ticker_data.get("vol", 0))
                 
                 change_emoji = "🟢" if change_24h >= 0 else "🔴"
+                conversion_prompt = self._get_conversion_prompt(price)
                 
                 return f"""
 📊 **{symbol}** - KuCoin
 💰 Price: ${price:,.6f}
 {change_emoji} 24h Change: {change_24h:+.2f}%
 📈 24h Volume: {volume_24h:,.2f}
+
+{conversion_prompt}
                 """.strip()
+            
+            elif exchange == "indodax":
+                # Format Indodax response (IDR)
+                try:
+                    result = data.get("data", {})
+                    if "ticker" in result:
+                        ticker = result["ticker"]
+                        symbol = result.get("symbol", ticker.get("symbol", "Unknown"))
+                        idr_price = ticker.get("last", "0")
+                        idr_formatted = ticker.get("price_idr_formatted", f"Rp {idr_price}")
+                        usd_price = float(ticker.get("price", 0))
+                        
+                        volume_idr = ticker.get("vol_idr", "N/A")
+                        high_idr = ticker.get("high", "N/A")
+                        low_idr = ticker.get("low", "N/A")
+                        
+                        return f"""
+📊 **{symbol}** - Indodax
+💰 Price: {idr_formatted}
+💲 USD equiv: ${usd_price:,.2f}
+📈 24h High: Rp {float(high_idr):,.0f} 
+📉 24h Low: Rp {float(low_idr):,.0f}
+📊 Volume: Rp {volume_idr}
+
+💡 *Ketik /convert untuk konversi mata uang*
+                        """.strip()
+                except (ValueError, TypeError):
+                    return f"❌ Error parsing Indodax data"
             
             else:
                 return f"✅ Data received from {exchange}:\n```json\n{json.dumps(data, indent=2)}\n```"
                 
         except Exception as e:
             return f"❌ Error formatting {exchange} data: {str(e)}"
+    
+    def _get_conversion_prompt(self, usd_price: float) -> str:
+        """Get currency conversion prompt"""
+        try:
+            # Approximate conversions
+            idr_price = usd_price * 15000  # 1 USD ≈ 15,000 IDR
+            
+            return f"""
+💡 *Konversi:*
+• USD: ${usd_price:,.2f}
+• IDR: Rp {idr_price:,.0f}
+
+_Ketik /convert untuk kalkulator mata uang_
+            """.strip()
+        except:
+            return "💡 *Ketik /convert untuk konversi mata uang*"
     
     async def format_comparison_response(self, data: Dict[str, Any]) -> str:
         """Format price comparison untuk response Telegram"""
