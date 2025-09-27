@@ -972,8 +972,9 @@ Create a well-formatted, natural response that directly answers the user's query
                 max_tokens=1500
             )
 
-            # Add context to conversation
-            self.conversation_context[-1]["response"] = formatted_response
+            # Add context to conversation (safe access)
+            if self.conversation_context:
+                self.conversation_context[-1]["response"] = formatted_response
 
             return formatted_response
 
@@ -1079,18 +1080,26 @@ Create a well-formatted, natural response that directly answers the user's query
                 response += "`Time          | Open     | High     | Low      | Close    | Volume`\n"
                 response += "`------------- | -------- | -------- | -------- | -------- | --------`\n"
                 
-                # Show last 10 klines
+                # Show last 10 klines with safe indexing
                 for kline in klines[:10]:
-                    timestamp = int(kline[0]) // 1000
-                    from datetime import datetime
-                    time_str = datetime.fromtimestamp(timestamp).strftime("%m-%d %H:%M")
-                    open_price = float(kline[1])
-                    high_price = float(kline[2])
-                    low_price = float(kline[3])
-                    close_price = float(kline[4])
-                    volume = float(kline[5])
-                    
-                    response += f"`{time_str}    | {open_price:8.2f} | {high_price:8.2f} | {low_price:8.2f} | {close_price:8.2f} | {volume:8.0f}`\n"
+                    try:
+                        # Safe indexing with validation
+                        if not kline or len(kline) < 6:
+                            continue
+                            
+                        timestamp = int(kline[0]) // 1000
+                        from datetime import datetime
+                        time_str = datetime.fromtimestamp(timestamp).strftime("%m-%d %H:%M")
+                        open_price = float(kline[1])
+                        high_price = float(kline[2])
+                        low_price = float(kline[3])
+                        close_price = float(kline[4])
+                        volume = float(kline[5])
+                        
+                        response += f"`{time_str}    | {open_price:8.2f} | {high_price:8.2f} | {low_price:8.2f} | {close_price:8.2f} | {volume:8.0f}`\n"
+                    except (IndexError, ValueError, TypeError) as e:
+                        logger.warning(f"Error processing kline data: {e}")
+                        continue
                 
                 response += f"\n📊 Total records: {len(klines)}"
                 return response
