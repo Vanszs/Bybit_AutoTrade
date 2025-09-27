@@ -429,6 +429,7 @@ class ExchangeClient:
                     
                 ticker = list_items[0]
                 return {
+                    "success": True,
                     "exchange": exchange.capitalize(),
                     "symbol": symbol,
                     "price": ticker.get("lastPrice"),
@@ -443,6 +444,7 @@ class ExchangeClient:
                 price = data.get("price", "N/A")
                 data_24h = ticker_data.get("data_24h", {})
                 return {
+                    "success": True,
                     "exchange": exchange.capitalize(),
                     "symbol": symbol,
                     "price": price,
@@ -456,6 +458,7 @@ class ExchangeClient:
                 # KuCoin format
                 kucoin_data = data.get("data", {})
                 return {
+                    "success": True,
                     "exchange": exchange.capitalize(),
                     "symbol": symbol,
                     "price": kucoin_data.get("last", "N/A"),
