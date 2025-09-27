@@ -524,6 +524,7 @@ Supported pairs:
         system_prompt = f"""You are an expert cryptocurrency trading analyst with deep market knowledge. Analyze the user's natural language query and understand their EXACT intent.
 
 AVAILABLE EXCHANGES: {', '.join(self.config.available_exchanges)}
+DEFAULT EXCHANGE: bybit (use bybit as default when no exchange specified)
 
 AVAILABLE TOOLS:
 1. get_price(symbol, exchange) - Get price from specific exchange
@@ -540,6 +541,19 @@ AVAILABLE TOOLS:
 12. get_funding_history(symbol, category, limit) - Get funding rate history (Bybit only)
 13. get_instruments_info(exchange, symbol) - Get trading instruments information
 14. get_server_time(exchange) - Get server time from exchange
+15. ask_clarification(question) - Ask user for clarification when information is unclear
+
+NATURAL LANGUAGE HANDLING:
+- If query is unclear about WHICH cryptocurrency/symbol: use ask_clarification("Crypto mana yang mau dicek? (contoh: BTC, ETH, SOL)")
+- If query mentions unknown/unclear symbols: use ask_clarification("Symbol 'XXXX' tidak jelas, maksudnya crypto apa ya?")
+- If interval/timeframe is confusing: use ask_clarification("Timeframe mana yang dimaksud? (contoh: 1m, 5m, 1h, 1d)")
+- Always be natural and conversational when asking for clarification
+
+DEFAULT VALUES:
+- exchange: "bybit" (ALWAYS use bybit as default)
+- symbol: "BTCUSDT" (only if context clearly suggests Bitcoin)
+- interval: "1h" for kline data
+- limit: 100 for data queries
 
 UNDERSTANDING RULES:
 - If user asks for "top N" or "best N" exchanges: use compare_top_exchanges
@@ -550,34 +564,26 @@ UNDERSTANDING RULES:
 - If user asks about positions/posisi/trading status: use get_positions
 - If user asks about balance/saldo/wallet: use get_balance
 - If user wants to close position: use close_position(position_id)
-- If user asks for kline/candlestick/chart data: use get_kline_data
+- If user asks for kline/candlestick/chart/ohlcv data: use get_kline_data
 - If user asks for order book data: use get_orderbook
 - If user asks for recent trades/transaction history: use get_recent_trades
 - If user asks for funding rate/funding history: use get_funding_history
 - If user asks for instruments/symbols info: use get_instruments_info
 - If user asks for server time: use get_server_time
 
-CRITICAL: Understand natural language context:
-- "show me BTC prices on top 5 CEX" = compare_top_exchanges(BTC, 5)
-- "compare ETH Binance vs KuCoin" = get_multiple_prices(ETH, [binance, kucoin])
-- "arbitrage for Bitcoin" = analyze_arbitrage(BTC, all_exchanges)
-- "harga Bitcoin terbaik" = compare_top_exchanges(BTC, 5)
-- "cek posisi saya" / "check my positions" = get_positions()
-- "cek saldo" / "check balance" / "wallet balance" = get_balance()
-- "tutup posisi 1" / "close position 2" = close_position(1) or close_position(2)
-- "get kline data BTC" / "chart data Bitcoin" = get_kline_data(BTC, 1h, bybit)
-- "show orderbook BTC" / "order book Bitcoin" = get_orderbook(BTC, bybit, 20)
-- "recent trades ETH" / "latest transactions" = get_recent_trades(ETH, bybit, 50)
-- "funding rate BTC" / "funding history" = get_funding_history(BTC, linear, 50)
-- "list instruments" / "available symbols" = get_instruments_info(bybit)
-- "server time" / "current time" = get_server_time(bybit)
+CRITICAL EXAMPLES:
+- "get kline data BTC" = get_kline_data(BTCUSDT, 1h, bybit)
+- "cek ohlv 1 jam tweakir dalam 5mnt tf" = ask_clarification("Symbol 'tweakir' tidak jelas, maksudnya crypto apa ya?")
+- "cek btc 1 jam ohlcv pada bybit 5mnt tf" = get_kline_data(BTCUSDT, 5m, bybit)
+- "harga Bitcoin" = get_price(BTCUSDT, bybit)
+- "compare prices" = ask_clarification("Crypto mana yang mau dicompare? (contoh: BTC, ETH)")
 
 {context_summary}
 
 Respond ONLY with valid JSON:
 {{
     "understanding": "Clear explanation of what user wants",
-    "action": "tool_name_to_use",
+    "action": "tool_name_to_use OR ask_clarification",
     "parameters": {{"param1": "value1", "param2": "value2"}},
     "reasoning": "Why this tool and parameters"
 }}"""
@@ -674,7 +680,7 @@ Respond ONLY with valid JSON:
 
             elif action == "get_multiple_prices":
                 symbol = parameters.get("symbol", "BTC")
-                exchanges = parameters.get("exchanges", ["binance", "bybit"])
+                exchanges = parameters.get("exchanges", ["bybit", "binance"])
 
                 result = await self.tools_registry.execute_tool("get_multiple_prices", {
                     "symbol": symbol,
@@ -686,7 +692,7 @@ Respond ONLY with valid JSON:
 
             elif action == "analyze_arbitrage":
                 symbol = parameters.get("symbol", "BTC")
-                exchanges = parameters.get("exchanges", ["binance", "bybit", "kucoin", "mexc", "okx"])
+                exchanges = parameters.get("exchanges", ["bybit", "binance", "kucoin", "mexc", "okx"])
 
                 result = await self.tools_registry.execute_tool("analyze_arbitrage", {
                     "symbol": symbol,
@@ -698,7 +704,7 @@ Respond ONLY with valid JSON:
 
             elif action == "get_price":
                 symbol = parameters.get("symbol", "BTC")
-                exchange = parameters.get("exchange", "binance")
+                exchange = parameters.get("exchange", "bybit")
 
                 result = await self.tools_registry.execute_tool("get_price", {
                     "symbol": symbol,
@@ -710,7 +716,7 @@ Respond ONLY with valid JSON:
 
             elif action == "get_market_overview":
                 symbols = parameters.get("symbols", ["BTC"])
-                exchanges = parameters.get("exchanges", ["binance", "bybit", "kucoin"])
+                exchanges = parameters.get("exchanges", ["bybit", "binance", "kucoin"])
 
                 result = await self.tools_registry.execute_tool("get_market_overview", {
                     "symbols": symbols,
@@ -811,7 +817,7 @@ Respond ONLY with valid JSON:
             elif action == "get_kline_data":
                 symbol = parameters.get("symbol", "BTCUSDT")
                 interval = parameters.get("interval", "1h")
-                exchange = parameters.get("exchange", "bybit")
+                exchange = parameters.get("exchange", "bybit")  # Default bybit
                 limit = parameters.get("limit", 100)
                 
                 # Convert interval to Bybit format
@@ -864,6 +870,17 @@ Respond ONLY with valid JSON:
                 except Exception as e:
                     logger.error(f"Error getting kline data: {e}")
                     return f"❌ Error: {str(e)}"
+
+            elif action == "ask_clarification":
+                # Handle clarification requests naturally
+                question = parameters.get("question", "Bisa tolong diperjelas maksudnya?")
+                
+                return f"🤔 *Perlu Klarifikasi*\n\n{question}\n\n💡 *Contoh format yang bisa digunakan:*\n" \
+                       f"• \"harga BTC bybit\"\n" \
+                       f"• \"kline data ETH 5m bybit\"\n" \
+                       f"• \"compare BTC top 5 exchange\"\n" \
+                       f"• \"cek posisi saya\"\n\n" \
+                       f"Silakan coba lagi dengan format yang lebih jelas! 😊"
 
             elif action in ["get_orderbook", "get_recent_trades", "get_funding_history", "get_instruments_info", "get_server_time"]:
                 # Handle additional tools via tools registry
