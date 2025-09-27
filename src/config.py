@@ -18,6 +18,11 @@ class Config:
     bybit_environment: str = "demo"  # mainnet, testnet, demo, simulation
     public_only: bool = True  # Toggle for public-only mode
     
+    # Multi-Exchange Support
+    multi_exchange_enabled: bool = True  # Enable multi-exchange support
+    default_exchange: str = "bybit"  # Default exchange to use
+    available_exchanges: list = None  # List of available exchanges
+    
     # ZAI (LLM) API
     zai_api_key: str = ""
     zai_base_url: str = "https://api.novita.ai/openai"
@@ -48,6 +53,12 @@ def get_config() -> Config:
     zai_api_key = os.getenv("ZAI_API_KEY", "").strip()
     zai_base_url = os.getenv("ZAI_BASE_URL", "https://api.novita.ai/openai").strip()
     llm_model = os.getenv("LLM_MODEL", "openai/gpt-oss-120b").strip()
+    
+    # Multi-exchange configuration
+    multi_exchange_enabled = os.getenv("MULTI_EXCHANGE_ENABLED", "true").lower() == "true"
+    default_exchange = os.getenv("DEFAULT_EXCHANGE", "bybit").lower()
+    available_exchanges_str = os.getenv("AVAILABLE_EXCHANGES", "bybit,binance,kucoin,indodax,mexc,okx,bitfinex,gateio,kraken,huobi")
+    available_exchanges = [x.strip() for x in available_exchanges_str.split(",")]
     llm_router_model = os.getenv("LLM_ROUTER_MODEL", "").strip()
     try:
         llm_temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
@@ -106,6 +117,9 @@ def get_config() -> Config:
         bybit_api_secret=bybit_api_secret,
         bybit_testnet=bybit_testnet,
         public_only=public_only,
+        multi_exchange_enabled=multi_exchange_enabled,
+        default_exchange=default_exchange,
+        available_exchanges=available_exchanges,
         bot_auth_username=auth_username,
         bot_auth_password=auth_password,
         bot_auth_store=auth_store_path,

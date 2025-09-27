@@ -610,3 +610,12 @@ class BybitClient:
             return "\n".join(rows) if rows else "Tidak ada trade."
         except Exception:
             return json.dumps(resp)
+
+    async def close(self) -> None:
+        """Close underlying HTTP client if initialized."""
+        client = getattr(self, "_client", None)
+        if client is not None:
+            try:
+                await client.aclose()
+            finally:
+                self._client = None

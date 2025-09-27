@@ -608,3 +608,287 @@ API V5 menyediakan uniformitas dan efisiensi untuk seluruh lini produk Bybit, me
 [12](https://bybit-exchange.github.io/docs/changelog/v5)
 [13](https://github.com/bybit-exchange/bybit_p2p)
 [14](https://www.npmjs.com/package/bybit-api)
+
+
+
+
+
+
+
+#ANOTHER MARKET API
+# CRYPTOCURRENCY EXCHANGE API DOCUMENTATION
+# Complete Public API Endpoints for All Major CEX
+
+## 1. INDODAX
+Base URL: https://indodax.com/api/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /ticker/{pair} - Get ticker for specific pair (e.g., btc_idr)
+• GET /tickers - Get all market tickers
+• GET /trades/{pair} - Get recent trades for specific pair
+• GET /depth/{pair} - Get order book for specific pair
+
+Examples:
+https://indodax.com/api/btc_idr/ticker
+https://indodax.com/api/tickers
+https://indodax.com/api/btc_idr/trades
+https://indodax.com/api/btc_idr/depth
+
+## 2. TOKOCRYPTO (TKO)
+Base URL: https://www.tokocrypto.com/open/v1/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /common/symbols - Get all trading symbols
+• GET /market/ticker - Get ticker for all symbols
+• GET /market/ticker?symbol={symbol} - Get ticker for specific symbol
+• GET /market/depth?symbol={symbol} - Get order book
+• GET /market/klines?symbol={symbol}&interval={interval} - Get candlestick data
+• GET /market/trades?symbol={symbol} - Get recent trades
+
+Examples:
+https://www.tokocrypto.com/open/v1/common/symbols
+https://www.tokocrypto.com/open/v1/market/ticker
+https://www.tokocrypto.com/open/v1/market/depth?symbol=BTC_USDT
+
+## 3. BYBIT
+Base URL: https://api.bybit.com/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /v5/market/instruments-info?category={category} - Get instrument info
+• GET /v5/market/orderbook?category={category}&symbol={symbol} - Get order book
+• GET /v5/market/tickers?category={category} - Get tickers
+• GET /v5/market/kline?category={category}&symbol={symbol}&interval={interval} - Get klines
+• GET /v5/market/recent-trade?category={category}&symbol={symbol} - Get recent trades
+• GET /v5/market/trading-records?category={category}&symbol={symbol} - Get trading records
+
+Examples:
+https://api.bybit.com/v5/market/tickers?category=spot
+https://api.bybit.com/v5/market/orderbook?category=spot&symbol=BTCUSDT
+https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=1
+
+## 4. BINANCE
+Base URL: https://api.binance.com/api/v3/
+Alternative: https://data-api.binance.vision/api/v3/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /ping - Test connectivity
+• GET /time - Check server time
+• GET /exchangeInfo - Exchange trading rules and symbol information
+• GET /depth?symbol={symbol} - Order book
+• GET /trades?symbol={symbol} - Recent trades list
+• GET /klines?symbol={symbol}&interval={interval} - Kline/candlestick data
+• GET /ticker/24hr - 24hr ticker price change statistics
+• GET /ticker/price - Symbol price ticker
+• GET /ticker/bookTicker - Symbol order book ticker
+
+Examples:
+https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT
+https://api.binance.com/api/v3/depth?symbol=BTCUSDT
+https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h
+
+## 5. KUCOIN
+Base URL: https://api.kucoin.com/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /api/v1/symbols - Get all trading symbols
+• GET /api/v1/market/allTickers - Get all tickers
+• GET /api/v1/market/stats?symbol={symbol} - Get ticker for specific symbol
+• GET /api/v1/market/orderbook/level2_20?symbol={symbol} - Get order book
+• GET /api/v1/market/candles?symbol={symbol}&type={type} - Get klines
+• GET /api/v1/market/histories?symbol={symbol} - Get trade histories
+• GET /api/v1/currencies - Get currency info
+
+Examples:
+https://api.kucoin.com/api/v1/market/allTickers
+https://api.kucoin.com/api/v1/market/orderbook/level2_20?symbol=BTC-USDT
+https://api.kucoin.com/api/v1/market/candles?symbol=BTC-USDT&type=1hour
+
+## 6. HUOBI
+Base URL: https://api.huobi.pro/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /market/history/kline?symbol={symbol}&period={period} - Get klines
+• GET /market/detail/merged?symbol={symbol} - Get ticker
+• GET /market/tickers - Get all tickers
+• GET /market/depth?symbol={symbol}&type={type} - Get order book
+• GET /market/trade?symbol={symbol} - Get recent trades
+• GET /v1/common/symbols - Get all symbols
+• GET /v1/common/currencys - Get all currencies
+
+Examples:
+https://api.huobi.pro/market/tickers
+https://api.huobi.pro/market/depth?symbol=btcusdt&type=step1
+https://api.huobi.pro/market/detail/merged?symbol=btcusdt
+
+## 7. MEXC
+Base URL: https://api.mexc.com/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /api/v3/ping - Test connectivity
+• GET /api/v3/time - Check server time
+• GET /api/v3/exchangeInfo - Exchange information
+• GET /api/v3/depth?symbol={symbol} - Order book
+• GET /api/v3/trades?symbol={symbol} - Recent trades
+• GET /api/v3/klines?symbol={symbol}&interval={interval} - Kline data
+• GET /api/v3/ticker/24hr - 24hr ticker statistics
+• GET /api/v3/ticker/price - Price ticker
+• GET /api/v3/ticker/bookTicker - Book ticker
+
+Examples:
+https://api.mexc.com/api/v3/ticker/price?symbol=BTCUSDT
+https://api.mexc.com/api/v3/depth?symbol=BTCUSDT
+https://api.mexc.com/api/v3/klines?symbol=BTCUSDT&interval=1h
+
+## 8. BITGET
+Base URL: https://api.bitget.com/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /api/spot/v1/public/time - Server time
+• GET /api/spot/v1/public/currencies - Get currencies
+• GET /api/spot/v1/public/products - Get all products
+• GET /api/spot/v1/market/{symbol}/ticker - Get ticker
+• GET /api/spot/v1/market/tickers - Get all tickers
+• GET /api/spot/v1/market/{symbol}/depth - Get depth
+• GET /api/spot/v1/market/{symbol}/trades - Get trades
+• GET /api/spot/v1/market/{symbol}/candles - Get candles
+
+Examples:
+https://api.bitget.com/api/spot/v1/market/tickers
+https://api.bitget.com/api/spot/v1/market/BTCUSDT_SPBL/ticker
+https://api.bitget.com/api/spot/v1/market/BTCUSDT_SPBL/depth
+
+## 9. OKX (OKEX)
+Base URL: https://www.okx.com/api/v5/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /public/instruments?instType={instType} - Get instruments
+• GET /market/ticker?instId={instId} - Get ticker
+• GET /market/tickers?instType={instType} - Get all tickers
+• GET /market/books?instId={instId} - Get order book
+• GET /market/trades?instId={instId} - Get trades
+• GET /market/candles?instId={instId}&bar={bar} - Get candlesticks
+• GET /public/time - Get system time
+
+Examples:
+https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT
+https://www.okx.com/api/v5/market/books?instId=BTC-USDT
+https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1H
+
+## 10. KRAKEN
+Base URL: https://api.kraken.com/0/public/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /Time - Get server time
+• GET /SystemStatus - Get system status
+• GET /Assets - Get asset info
+• GET /AssetPairs - Get tradeable asset pairs
+• GET /Ticker?pair={pair} - Get ticker information
+• GET /Depth?pair={pair} - Get order book
+• GET /Trades?pair={pair} - Get recent trades
+• GET /OHLC?pair={pair} - Get OHLC data
+
+Examples:
+https://api.kraken.com/0/public/Ticker?pair=BTCUSD
+https://api.kraken.com/0/public/Depth?pair=BTCUSD
+https://api.kraken.com/0/public/OHLC?pair=BTCUSD
+
+## 11. GATE.IO
+Base URL: https://api.gateio.ws/api/v4/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /spot/currencies - List all currencies
+• GET /spot/currency_pairs - List all currency pairs
+• GET /spot/tickers - Retrieve ticker information
+• GET /spot/order_book?currency_pair={pair} - Retrieve order book
+• GET /spot/trades?currency_pair={pair} - Retrieve market trades
+• GET /spot/candlesticks?currency_pair={pair} - Market candlesticks
+• GET /spot/time - Get server current time
+
+Examples:
+https://api.gateio.ws/api/v4/spot/tickers
+https://api.gateio.ws/api/v4/spot/order_book?currency_pair=BTC_USDT
+https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT
+
+## 12. COINBASE
+Base URL: https://api.coinbase.com/api/v3/brokerage/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /time - Get server time
+• GET /market/products - List products
+• GET /market/products/{product_id} - Get single product
+• GET /market/product_book?product_id={product_id} - Get product book
+• GET /market/products/{product_id}/candles - Get product candles
+• GET /market/products/{product_id}/ticker - Get product ticker
+
+Examples:
+https://api.coinbase.com/api/v3/brokerage/market/products
+https://api.coinbase.com/api/v3/brokerage/market/product_book?product_id=BTC-USD
+https://api.coinbase.com/api/v3/brokerage/market/products/BTC-USD/ticker
+
+## 13. CRYPTO.COM
+Base URL: https://api.crypto.com/v1/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /symbols - Get all available market symbols
+• GET /ticker - Get tickers for all markets
+• GET /ticker?symbol={symbol} - Get ticker for specific market
+• GET /trades?symbol={symbol} - Get recent trades
+• GET /depth?symbol={symbol} - Get order book
+• GET /klines?symbol={symbol}&period={period} - Get kline data
+
+Examples:
+https://api.crypto.com/v1/symbols
+https://api.crypto.com/v1/ticker
+https://api.crypto.com/v1/depth?symbol=BTCUSD
+
+## 14. BITFINEX
+Base URL: https://api-pub.bitfinex.com/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /v2/platform/status - Platform status
+• GET /v2/tickers?symbols={symbols} - Get tickers
+• GET /v2/ticker/{symbol} - Get ticker for symbol
+• GET /v2/trades/{symbol}/hist - Get trades
+• GET /v2/book/{symbol}/{precision} - Get order book
+• GET /v2/candles/trade:{timeframe}:{symbol}/hist - Get candles
+
+Examples:
+https://api-pub.bitfinex.com/v2/ticker/tBTCUSD
+https://api-pub.bitfinex.com/v2/book/tBTCUSD/P0
+https://api-pub.bitfinex.com/v2/candles/trade:1h:tBTCUSD/hist
+
+## 15. POLONIEX
+Base URL: https://api.poloniex.com/
+Authentication: Not required for public endpoints
+
+Public Endpoints:
+• GET /markets - List all markets
+• GET /markets/{symbol} - Get market info
+• GET /markets/{symbol}/orderBook - Get order book
+• GET /markets/{symbol}/trades - Get recent trades
+• GET /markets/{symbol}/candles - Get candles
+• GET /markets/ticker24h - Get 24h tickers
+• GET /markets/{symbol}/ticker24h - Get 24h ticker for symbol
+
+Examples:
+https://api.poloniex.com/markets
+https://api.poloniex.com/markets/BTC_USDT/orderBook
+https://api.poloniex.com/markets/ticker24h
+
+## USAGE EXAMPLES
+
+JavaScript Fetch Example:

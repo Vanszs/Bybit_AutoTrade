@@ -37,12 +37,15 @@ This document summarizes the changes made to fix the Bybit Zai Bot and make it w
 
 ## Testing
 
-A test script `test_public_api.py` has been added to verify that public endpoints work correctly in public_only mode.
+Testing has been unified into a single script `test_natural_language.py` to keep the repo tidy.
 
 Run it with:
 ```
-python test_public_api.py
+python test_natural_language.py
 ```
+It includes:
+- Public API sanity checks (server time, ticker, kline, orderbook)
+- Natural language queries (price, compare, arbitrage, overview)
 
 ## Remaining Issues
 
@@ -59,4 +62,5 @@ If you encounter any issues, please check:
   - Router can return a direct `reply` to avoid a second call
   - Added Telegram error handler to reduce crashes on timeouts
 - Unified entrypoint: `src/main.py` now contains the enhanced bot. Removed duplicates: `src/enhanced_main.py`, `src/main_complete.py`.
+- Unified tests: merged `test_public_api.py` and `test_market_overview.py` into `test_natural_language.py`.
 - Private endpoints now gated strictly in public-only mode with clearer guidance.
